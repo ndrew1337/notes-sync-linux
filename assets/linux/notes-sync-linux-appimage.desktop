@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NotesSyncLinux
+Comment=Sync public notes files and folders
+Exec=NotesSyncLinux
+Icon=notes-sync-linux
+Terminal=false
+Categories=Utility;Education;Office;
+StartupNotify=true
+X-AppImage-Version=__VERSION__

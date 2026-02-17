@@ -1,0 +1,55 @@
+name: Linux Notes Sync bug
+about: Report a bug in the Linux Notes Sync app
+labels: [bug, linux-notes-sync]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please include exact steps and a public test URL if possible.
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App version / commit
+      placeholder: "e.g. commit hash or release tag"
+    validations:
+      required: true
+
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distro
+      placeholder: "Ubuntu 24.04 / Fedora 40 / Arch"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1) Add source ...
+        2) Click Update selected ...
+        3) Double click file ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / traceback (if any)
+      render: shell

@@ -1,0 +1,41 @@
+name: Linux Notes Sync CI
+
+on:
+  push:
+    paths:
+      - "**"
+  pull_request:
+    paths:
+      - "**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install GUI dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk xvfb
+
+      - name: Compile python files
+        run: |
+          python3 -m py_compile notes_sync_linux/core.py
+          python3 -m py_compile notes_sync_linux/gui.py
+          python3 -m py_compile notes_sync_linux/main.py
+
+      - name: Run unit tests
+        env:
+          PYTHONPATH: .
+        run: |
+          python3 -m unittest discover -s tests -v
+
+      - name: GUI smoke test (xvfb)
+        env:
+          PYTHONPATH: .
+        run: |
+          xvfb-run -a python3 scripts/gui_smoke_test.py
