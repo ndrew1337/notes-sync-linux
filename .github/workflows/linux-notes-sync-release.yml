@@ -50,7 +50,11 @@ jobs:
             squashfs-tools \
             file \
             curl \
-            xvfb
+            xvfb \
+            libegl1 \
+            libgl1 \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0
 
       - name: Install python build dependencies
         shell: bash

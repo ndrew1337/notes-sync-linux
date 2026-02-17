@@ -6,6 +6,11 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-02-17
+
+### Fixed
+- Linux CI/release runners now install required Qt/OpenGL libs (`libegl1`, `libgl1`, `libxkbcommon-x11-0`, `libxcb-cursor0`) for PySide6 smoke tests.
+
 ## [0.1.1] - 2026-02-17
 
 ### Added
