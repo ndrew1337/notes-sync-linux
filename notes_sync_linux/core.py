@@ -77,6 +77,8 @@ class NoteItem:
     title: str
     url: str
     file_name: str
+    is_group: bool = False
+    parent_id: Optional[str] = None
     sha256: Optional[str] = None
     last_checked_at: Optional[str] = None
     last_updated_at: Optional[str] = None
@@ -91,6 +93,8 @@ class NoteItem:
             "title": self.title,
             "url": self.url,
             "file_name": self.file_name,
+            "is_group": self.is_group,
+            "parent_id": self.parent_id,
             "sha256": self.sha256,
             "last_checked_at": self.last_checked_at,
             "last_updated_at": self.last_updated_at,
@@ -110,6 +114,8 @@ class NoteItem:
             title=raw.get("title") or "Untitled",
             url=raw.get("url") or "",
             file_name=raw.get("file_name") or raw.get("fileName") or "",
+            is_group=bool(raw.get("is_group") if raw.get("is_group") is not None else raw.get("isGroup", False)),
+            parent_id=raw.get("parent_id") if raw.get("parent_id") is not None else raw.get("parentId"),
             sha256=raw.get("sha256"),
             last_checked_at=raw.get("last_checked_at") or raw.get("lastCheckedAt"),
             last_updated_at=raw.get("last_updated_at") or raw.get("lastUpdatedAt"),
@@ -126,14 +132,19 @@ class AppConfig:
     skip_video_files: bool = False
     skip_large_files: bool = False
     max_file_size_mb: int = 100
+    file_sort_mode: str = "name"
     notes: list[NoteItem] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        sort_mode = (self.file_sort_mode or "name").strip().lower()
+        if sort_mode not in ("name", "date"):
+            sort_mode = "name"
         return {
             "check_interval_minutes": max(5, int(self.check_interval_minutes)),
             "skip_video_files": bool(self.skip_video_files),
             "skip_large_files": bool(self.skip_large_files),
             "max_file_size_mb": max(1, int(self.max_file_size_mb)),
+            "file_sort_mode": sort_mode,
             "notes": [n.to_dict() for n in self.notes],
         }
 
@@ -157,11 +168,19 @@ class AppConfig:
         if max_size is None:
             max_size = raw.get("maxFileSizeMB", 100)
 
+        sort_mode = raw.get("file_sort_mode")
+        if sort_mode is None:
+            sort_mode = raw.get("fileSortMode", "name")
+        normalized_sort_mode = str(sort_mode or "name").strip().lower()
+        if normalized_sort_mode not in ("name", "date"):
+            normalized_sort_mode = "name"
+
         return AppConfig(
             check_interval_minutes=max(5, int(check_interval or 180)),
             skip_video_files=bool(skip_video),
             skip_large_files=bool(skip_large),
             max_file_size_mb=max(1, int(max_size or 100)),
+            file_sort_mode=normalized_sort_mode,
             notes=[NoteItem.from_dict(n) for n in notes_raw],
         )
 

@@ -137,6 +137,8 @@ class NotesSyncLinuxApp(tk.Tk):
         self.max_size_var = tk.StringVar(value=str(self.config_data.max_file_size_mb))
         self.skip_video_var = tk.BooleanVar(value=self.config_data.skip_video_files)
         self.skip_large_var = tk.BooleanVar(value=self.config_data.skip_large_files)
+        normalized_sort_mode = self.config_data.file_sort_mode if self.config_data.file_sort_mode in ("name", "date") else "name"
+        self.file_sort_mode_var = tk.StringVar(value=normalized_sort_mode)
 
         self._build_ui()
         self._refresh_notes_table()
@@ -154,7 +156,7 @@ class NotesSyncLinuxApp(tk.Tk):
 
         controls = ttk.Frame(root)
         controls.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        controls.columnconfigure(12, weight=1)
+        controls.columnconfigure(14, weight=1)
 
         self.add_btn = ttk.Button(controls, text="Add", command=self._add_note)
         self.add_btn.grid(row=0, column=0, padx=(0, 6))
@@ -177,23 +179,34 @@ class NotesSyncLinuxApp(tk.Tk):
         self.open_btn = ttk.Button(controls, text="Open selected file", command=self._open_selected_file)
         self.open_btn.grid(row=0, column=6, padx=(0, 12))
 
+        ttk.Label(controls, text="Sort files").grid(row=0, column=7, padx=(0, 4))
+        self.file_sort_combo = ttk.Combobox(
+            controls,
+            textvariable=self.file_sort_mode_var,
+            values=("name", "date"),
+            state="readonly",
+            width=7,
+        )
+        self.file_sort_combo.grid(row=0, column=8, padx=(0, 10))
+        self.file_sort_combo.bind("<<ComboboxSelected>>", self._on_file_sort_mode_change)
+
         ttk.Checkbutton(controls, text="Skip videos", variable=self.skip_video_var, command=self._persist_config_safe).grid(
-            row=0, column=7, padx=(0, 8)
+            row=0, column=9, padx=(0, 8)
         )
         ttk.Checkbutton(controls, text="Skip >", variable=self.skip_large_var, command=self._persist_config_safe).grid(
-            row=0, column=8, padx=(0, 4)
+            row=0, column=10, padx=(0, 4)
         )
 
         self.max_size_entry = ttk.Entry(controls, textvariable=self.max_size_var, width=6)
-        self.max_size_entry.grid(row=0, column=9)
-        ttk.Label(controls, text="MB").grid(row=0, column=10, padx=(4, 4))
-        ttk.Button(controls, text="Set", command=self._apply_max_size).grid(row=0, column=11, padx=(0, 12))
+        self.max_size_entry.grid(row=0, column=11)
+        ttk.Label(controls, text="MB").grid(row=0, column=12, padx=(4, 4))
+        ttk.Button(controls, text="Set", command=self._apply_max_size).grid(row=0, column=13, padx=(0, 12))
 
-        ttk.Label(controls, text="Auto every").grid(row=0, column=13)
+        ttk.Label(controls, text="Auto every").grid(row=0, column=15)
         self.interval_entry = ttk.Entry(controls, textvariable=self.interval_var, width=6)
-        self.interval_entry.grid(row=0, column=14, padx=(6, 0))
-        ttk.Label(controls, text="min").grid(row=0, column=15, padx=(4, 4))
-        ttk.Button(controls, text="Apply", command=self._apply_interval).grid(row=0, column=16)
+        self.interval_entry.grid(row=0, column=16, padx=(6, 0))
+        ttk.Label(controls, text="min").grid(row=0, column=17, padx=(4, 4))
+        ttk.Button(controls, text="Apply", command=self._apply_interval).grid(row=0, column=18)
 
         notes_frame = ttk.Frame(root)
         notes_frame.grid(row=1, column=0, sticky="nsew")
@@ -264,6 +277,33 @@ class NotesSyncLinuxApp(tk.Tk):
                 return note
         return None
 
+    def _descendant_ids(self, root_id: str) -> set[str]:
+        descendants: set[str] = set()
+        stack = [root_id]
+        while stack:
+            current = stack.pop()
+            for child in self.notes:
+                if child.parent_id != current:
+                    continue
+                if child.id in descendants:
+                    continue
+                descendants.add(child.id)
+                stack.append(child.id)
+        descendants.discard(root_id)
+        return descendants
+
+    def _selected_sync_ids(self) -> list[str]:
+        selected = self._find_note(self.selected_note_id)
+        if selected is None:
+            return []
+        if not selected.is_group:
+            return [selected.id]
+        descendants = self._descendant_ids(selected.id)
+        return [x.id for x in self.notes if x.id in descendants and not x.is_group]
+
+    def _all_sync_ids(self) -> list[str]:
+        return [x.id for x in self.notes if not x.is_group]
+
     def _normalize_source_url(self, raw: str) -> Optional[str]:
         value = raw.strip()
         if not value:
@@ -296,14 +336,47 @@ class NotesSyncLinuxApp(tk.Tk):
         except ValueError:
             max_size = 100
 
+        sort_mode = (self.file_sort_mode_var.get() or "name").strip().lower()
+        if sort_mode not in ("name", "date"):
+            sort_mode = "name"
+        self.file_sort_mode_var.set(sort_mode)
+
         cfg = AppConfig(
             check_interval_minutes=interval,
             skip_video_files=bool(self.skip_video_var.get()),
             skip_large_files=bool(self.skip_large_var.get()),
             max_file_size_mb=max_size,
+            file_sort_mode=sort_mode,
             notes=self.notes,
         )
         self.storage.save_config(cfg)
+
+    def _on_file_sort_mode_change(self, _event: object) -> None:
+        sort_mode = (self.file_sort_mode_var.get() or "name").strip().lower()
+        if sort_mode not in ("name", "date"):
+            sort_mode = "name"
+            self.file_sort_mode_var.set(sort_mode)
+        self._persist_config()
+        self._refresh_source_tree()
+
+    def _sort_timestamp_value(self, value: Optional[str]) -> float:
+        if not value:
+            return 0.0
+        for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"):
+            try:
+                return datetime.strptime(value, fmt).timestamp()
+            except ValueError:
+                continue
+        return 0.0
+
+    def _source_node_sort_key(self, node: dict) -> tuple:
+        if node["is_folder"]:
+            return (0, node["name"].lower())
+        if self.file_sort_mode_var.get() == "date":
+            file_obj: Optional[SyncedFileItem] = node.get("file")
+            stamp = self._sort_timestamp_value(file_obj.modified_at if file_obj else None)
+            return (1, -stamp, node["name"].lower())
+        return (1, node["name"].lower())
 
     def _refresh_notes_table(self) -> None:
         selected = self.selected_note_id
@@ -311,16 +384,17 @@ class NotesSyncLinuxApp(tk.Tk):
             self.notes_tree.delete(iid)
 
         for note in self.notes:
+            title = f"[Folder] {note.title}" if note.is_group else note.title
             self.notes_tree.insert(
                 "",
                 "end",
                 iid=note.id,
                 values=(
-                    note.title,
+                    title,
                     note.status,
                     iso_to_display(note.last_checked_at),
                     iso_to_display(note.last_updated_at),
-                    note.url,
+                    "-" if note.is_group else note.url,
                 ),
             )
 
@@ -346,12 +420,22 @@ class NotesSyncLinuxApp(tk.Tk):
         self.source_nodes = {}
         self.source_tree.delete(*self.source_tree.get_children(""))
 
-        if not selected_note or selected_note.source_type != "folder" or not selected_note.folder_files:
+        nodes: list[dict] = []
+        if selected_note:
+            if selected_note.is_group:
+                nodes = self._build_group_source_tree(selected_note)
+            elif selected_note.source_type == "folder" and selected_note.folder_files:
+                nodes = self._build_source_tree_data(
+                    selected_note.folder_files,
+                    owner_note_id=selected_note.id,
+                    id_namespace=selected_note.id,
+                )
+
+        if not nodes:
             self.selected_source_tree_id = None
             self._update_controls_state()
             return
 
-        nodes = self._build_source_tree_data(selected_note.folder_files)
         for node in nodes:
             self._insert_source_node("", node)
 
@@ -359,12 +443,7 @@ class NotesSyncLinuxApp(tk.Tk):
             self.source_tree.selection_set(selected_tree_id)
             self.selected_source_tree_id = selected_tree_id
         else:
-            first_file = self._first_file_tree_id()
-            if first_file:
-                self.source_tree.selection_set(first_file)
-                self.selected_source_tree_id = first_file
-            else:
-                self.selected_source_tree_id = None
+            self.selected_source_tree_id = None
 
         self._update_controls_state()
 
@@ -374,7 +453,72 @@ class NotesSyncLinuxApp(tk.Tk):
     def _file_tree_id(self, path: str) -> str:
         return "file:" + hashlib.sha1(path.encode("utf-8")).hexdigest()
 
-    def _build_source_tree_data(self, files: list[SyncedFileItem]) -> list[dict]:
+    def _group_source_notes(self, group_note: NoteItem) -> list[NoteItem]:
+        descendants = self._descendant_ids(group_note.id)
+        candidates = [
+            note
+            for note in self.notes
+            if note.id in descendants and not note.is_group and note.source_type == "folder" and bool(note.folder_files)
+        ]
+        return sorted(candidates, key=lambda note: self._group_source_label(group_note, note).lower())
+
+    def _group_source_label(self, group_note: NoteItem, source_note: NoteItem) -> str:
+        by_id = {note.id: note for note in self.notes}
+        chain: list[str] = []
+        seen: set[str] = set()
+        current_id: Optional[str] = source_note.id
+        reached_group = False
+
+        while current_id:
+            if current_id in seen:
+                break
+            seen.add(current_id)
+            if current_id == group_note.id:
+                reached_group = True
+                break
+            current = by_id.get(current_id)
+            if current is None:
+                break
+            chain.append(current.title)
+            current_id = current.parent_id
+
+        if reached_group and chain:
+            return " / ".join(reversed(chain))
+        return source_note.title
+
+    def _build_group_source_tree(self, group_note: NoteItem) -> list[dict]:
+        nodes: list[dict] = []
+        for source_note in self._group_source_notes(group_note):
+            source_nodes = self._build_source_tree_data(
+                source_note.folder_files,
+                owner_note_id=source_note.id,
+                id_namespace=source_note.id,
+            )
+            if not source_nodes:
+                continue
+
+            source_path = f"{group_note.id}::{source_note.id}"
+            nodes.append(
+                {
+                    "id": self._folder_tree_id(source_path),
+                    "name": self._group_source_label(group_note, source_note),
+                    "path": source_path,
+                    "is_folder": True,
+                    "file": None,
+                    "owner_note_id": source_note.id,
+                    "children": source_nodes,
+                }
+            )
+
+        nodes.sort(key=self._source_node_sort_key)
+        return nodes
+
+    def _build_source_tree_data(
+        self,
+        files: list[SyncedFileItem],
+        owner_note_id: Optional[str] = None,
+        id_namespace: str = "",
+    ) -> list[dict]:
         class BuildNode:
             def __init__(self, name: str, path: str, file_obj: Optional[SyncedFileItem]) -> None:
                 self.name = name
@@ -404,30 +548,33 @@ class NotesSyncLinuxApp(tk.Tk):
             current.children[file_name] = BuildNode(file_name, file_path, file)
 
         def freeze(node: BuildNode) -> dict:
+            path_for_id = f"{id_namespace}::{node.path}" if id_namespace else node.path
             if node.file_obj is not None:
                 return {
-                    "id": self._file_tree_id(node.path),
+                    "id": self._file_tree_id(path_for_id),
                     "name": node.name,
                     "path": node.path,
                     "is_folder": False,
                     "file": node.file_obj,
+                    "owner_note_id": owner_note_id,
                     "children": [],
                 }
 
             children = [freeze(child) for child in node.children.values()]
-            children.sort(key=lambda x: (0 if x["is_folder"] else 1, x["name"].lower()))
+            children.sort(key=self._source_node_sort_key)
 
             return {
-                "id": self._folder_tree_id(node.path),
+                "id": self._folder_tree_id(path_for_id),
                 "name": node.name,
                 "path": node.path,
                 "is_folder": True,
                 "file": None,
+                "owner_note_id": None,
                 "children": children,
             }
 
         top = [freeze(child) for child in root.children.values()]
-        top.sort(key=lambda x: (0 if x["is_folder"] else 1, x["name"].lower()))
+        top.sort(key=self._source_node_sort_key)
         return top
 
     def _insert_source_node(self, parent: str, node: dict) -> None:
@@ -451,12 +598,6 @@ class NotesSyncLinuxApp(tk.Tk):
 
         for child in node["children"]:
             self._insert_source_node(node["id"], child)
-
-    def _first_file_tree_id(self) -> Optional[str]:
-        for iid, node in self.source_nodes.items():
-            if not node.get("is_folder"):
-                return iid
-        return None
 
     def _on_note_selection(self, _event: object) -> None:
         selected = self.notes_tree.selection()
@@ -484,12 +625,25 @@ class NotesSyncLinuxApp(tk.Tk):
             self.source_tree.item(iid, open=not current_open)
             return
 
-        file_obj: SyncedFileItem = node["file"]
-        note = self._find_note(self.selected_note_id)
-        if not note:
+        target = self._resolve_source_file_target(node)
+        if target is None:
             return
 
+        note, file_obj = target
         self._open_or_download_source_file(note, file_obj)
+
+    def _resolve_source_file_target(self, node: dict) -> Optional[tuple[NoteItem, SyncedFileItem]]:
+        if node.get("is_folder"):
+            return None
+        file_obj: Optional[SyncedFileItem] = node.get("file")
+        if file_obj is None:
+            return None
+
+        owner_note_id = node.get("owner_note_id") or self.selected_note_id
+        note = self._find_note(owner_note_id)
+        if note is None:
+            return None
+        return note, file_obj
 
     def _open_or_download_source_file(self, note: NoteItem, file_obj: SyncedFileItem) -> None:
         local_path = self.storage.source_file_path(note, file_obj.local_relative_path)
@@ -551,7 +705,7 @@ class NotesSyncLinuxApp(tk.Tk):
             messagebox.showerror("Error", "Select a note first")
             return
 
-        if note.source_type == "folder":
+        if note.is_group or note.source_type == "folder":
             selected = self.source_tree.selection()
             if not selected:
                 messagebox.showerror("Error", "Select a file in the folder tree")
@@ -563,8 +717,12 @@ class NotesSyncLinuxApp(tk.Tk):
             if node.get("is_folder"):
                 messagebox.showerror("Error", "Select a file, not a folder")
                 return
-            file_obj: SyncedFileItem = node["file"]
-            self._open_or_download_source_file(note, file_obj)
+            target = self._resolve_source_file_target(node)
+            if target is None:
+                messagebox.showerror("Error", "Failed to resolve selected file")
+                return
+            owner_note, file_obj = target
+            self._open_or_download_source_file(owner_note, file_obj)
             return
 
         file_path = self.storage.single_file_path(note)
@@ -684,10 +842,14 @@ class NotesSyncLinuxApp(tk.Tk):
         if not self.selected_note_id:
             messagebox.showerror("Error", "Select a note first")
             return
-        self._start_sync([self.selected_note_id], reason="manual")
+        target_ids = self._selected_sync_ids()
+        if not target_ids:
+            self.status_var.set("No source links in selected folder")
+            return
+        self._start_sync(target_ids, reason="manual")
 
     def _sync_all(self) -> None:
-        self._start_sync([n.id for n in self.notes], reason="manual")
+        self._start_sync(self._all_sync_ids(), reason="manual")
 
     def _stop_sync(self) -> None:
         if not self.is_syncing or self.sync_cancel_event is None:
@@ -742,6 +904,8 @@ class NotesSyncLinuxApp(tk.Tk):
 
             note = self._find_note(note_id)
             if note is None:
+                continue
+            if note.is_group:
                 continue
 
             self.ui_queue.put(("note_precheck", note_id, offset + 1, len(note_ids)))
@@ -870,7 +1034,7 @@ class NotesSyncLinuxApp(tk.Tk):
 
         self.status_var.set(f"Syncing {note_title}: {progress.processed_count}/{progress.total_count}")
         self._refresh_notes_table()
-        if self.selected_note_id == note_id:
+        if self.selected_note_id == note_id or self._is_note_visible_in_selected_group(note_id):
             self._refresh_source_tree()
 
     def _replace_note(self, synced_note: NoteItem) -> None:
@@ -882,8 +1046,14 @@ class NotesSyncLinuxApp(tk.Tk):
             self.notes.append(synced_note)
 
         self._refresh_notes_table()
-        if self.selected_note_id == synced_note.id:
+        if self.selected_note_id == synced_note.id or self._is_note_visible_in_selected_group(synced_note.id):
             self._refresh_source_tree()
+
+    def _is_note_visible_in_selected_group(self, note_id: str) -> bool:
+        selected = self._find_note(self.selected_note_id)
+        if selected is None or not selected.is_group:
+            return False
+        return note_id in self._descendant_ids(selected.id)
 
     def _apply_max_size(self) -> None:
         try:
@@ -907,7 +1077,7 @@ class NotesSyncLinuxApp(tk.Tk):
 
     def _auto_sync_tick(self) -> None:
         try:
-            if not self.is_syncing and self.notes:
+            if not self.is_syncing and any(not x.is_group for x in self.notes):
                 try:
                     interval = max(5, int(self.interval_var.get() or "180"))
                 except ValueError:
@@ -915,31 +1085,33 @@ class NotesSyncLinuxApp(tk.Tk):
 
                 elapsed = (datetime.utcnow() - self.last_auto_sync_at).total_seconds()
                 if elapsed >= interval * 60:
-                    self._start_sync([n.id for n in self.notes], reason="auto")
+                    self._start_sync(self._all_sync_ids(), reason="auto")
         finally:
             self.after(20_000, self._auto_sync_tick)
 
     def _update_controls_state(self) -> None:
-        has_note = self._find_note(self.selected_note_id) is not None
-        has_notes = len(self.notes) > 0
+        note = self._find_note(self.selected_note_id)
+        has_note = note is not None
+        has_sources = any(not x.is_group for x in self.notes)
 
         self.add_btn.configure(state="disabled" if self.is_syncing else "normal")
         self.edit_btn.configure(state="disabled" if self.is_syncing or not has_note else "normal")
         self.delete_btn.configure(state="disabled" if self.is_syncing or not has_note else "normal")
 
-        self.update_selected_btn.configure(state="disabled" if self.is_syncing or not has_note else "normal")
-        self.update_all_btn.configure(state="disabled" if self.is_syncing or not has_notes else "normal")
+        self.update_selected_btn.configure(
+            state="disabled" if self.is_syncing or not self._selected_sync_ids() else "normal"
+        )
+        self.update_all_btn.configure(state="disabled" if self.is_syncing or not has_sources else "normal")
         self.stop_btn.configure(state="normal" if self.is_syncing and not self.is_stopping else "disabled")
 
-        note = self._find_note(self.selected_note_id)
         can_open = False
         if note:
-            if note.source_type == "folder":
+            if note.is_group or note.source_type == "folder":
                 selected = self.source_tree.selection()
                 if selected:
                     node = self.source_nodes.get(selected[0])
                     can_open = bool(node and not node.get("is_folder"))
-            else:
+            elif not note.is_group:
                 can_open = True
 
         self.open_btn.configure(state="normal" if can_open else "disabled")

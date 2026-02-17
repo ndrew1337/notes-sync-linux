@@ -1,167 +1,155 @@
 # NotesSyncLinux
 
-Linux desktop version of the notes sync app (PySide6/Qt primary UI, Python 3.10+).
+Desktop app for Linux that syncs study notes from public links (Yandex Disk, Google Drive, direct URLs).
+
+Repository: [ndrew1337/notes-sync-linux](https://github.com/ndrew1337/notes-sync-linux)
 
 ## Features
 
-- Add/edit/delete note sources (public links)
-- Sync selected / sync all
-- Stop sync
-- Folder mode for Yandex public folders
-- Finder-like tree for folder files (nested folders, expand/collapse)
-- Double-click on file:
-  - opens local file if already downloaded
-  - starts download if file is missing locally, then opens it
-- Partial sync behavior:
-  - all file entries remain visible in tree
-  - skipped/failed files are not removed from structure
-- Filters:
-  - `Skip videos`
-  - `Skip > N MB`
+- Add, edit, delete sources
+- Manual sync: selected source or all sources
+- Auto-sync timer
+- Stop active sync
+- Folder mode with tree view (expand/collapse nested folders)
+- Sort files inside source folders by `Name` or `Date`
+- Double-click file to open
+- If file is missing locally, double-click starts download (for Yandex folder sources)
+- Keep full folder structure even when some files are skipped/failed
+- Filters: `Skip videos`, `Skip > N MB`
 
-## Requirements
+## Install (for users)
+
+Download `.deb` or `AppImage` from [Releases](https://github.com/ndrew1337/notes-sync-linux/releases).
+
+### Option 1: `.deb`
+
+```bash
+sudo apt install ./notes-sync-linux_<VERSION>_amd64.deb
+notes-sync-linux
+```
+
+### Option 2: `AppImage`
+
+```bash
+chmod +x NotesSyncLinux-<VERSION>-x86_64.AppImage
+./NotesSyncLinux-<VERSION>-x86_64.AppImage
+```
+
+## Run From Source
+
+### Requirements
 
 - Linux
 - Python 3.10+
-- `PySide6` (install with `pip`, see below)
-- `tkinter` package (optional fallback UI; Debian/Ubuntu: `sudo apt install python3-tk`)
-- `xdg-open` (usually preinstalled)
+- `xdg-open`
 
-Install Python dependencies:
+Install dependencies:
 
 ```bash
-cd notes_sync_app_linux
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
 
-## Run
+Run:
 
 ```bash
-cd notes_sync_app_linux
 python3 -m notes_sync_linux.main
 ```
 
-or:
+Alternative:
 
 ```bash
-cd notes_sync_app_linux
 ./run.sh
 ```
 
-`main` uses Qt UI by default, and falls back to tkinter if Qt is unavailable.
+## UI
 
-Force tkinter explicitly:
-
-```bash
-cd notes_sync_app_linux
-NOTES_SYNC_UI=tk python3 -m notes_sync_linux.main
-```
+- Qt (`PySide6`) only
 
 Run Qt entrypoint directly:
 
 ```bash
-cd notes_sync_app_linux
 python3 -m notes_sync_linux.main_qt
 ```
 
 ## Storage
 
-App data is stored in:
+Local data path:
 
 - `~/.notes-sync-app-linux/config.json`
 - `~/.notes-sync-app-linux/sources/`
 - `~/.notes-sync-app-linux/pdfs/`
 
-## Notes
+## Link Support
 
-- On-demand file download by double-click is implemented for Yandex folder sources.
-- For non-Yandex sources, on-demand per-file download is not guaranteed because remote path metadata is provider-specific.
+- Yandex public file/folder links (`disk.yandex.ru`, `disk.360.yandex.ru`, `docs.yandex.ru`)
+- Google Drive public file links
+- Direct HTTP/HTTPS file links
 
-## Publish To GitHub
+Notes:
 
-1. Create a new empty repository on GitHub, for example `notes-sync-linux`.
-2. From local terminal:
+- On-demand per-file redownload (double-click missing file) is implemented for Yandex folder sources.
+- For non-Yandex providers, per-file on-demand download depends on available remote path metadata.
 
-```bash
-cd /Users/andrew/.codex/workspaces/default/notes_sync_app_linux
-git init
-git add .
-git commit -m "Initial Linux version"
-git branch -M main
-git remote add origin git@github.com:<YOUR_USERNAME>/notes-sync-linux.git
-git push -u origin main
-```
+## Development
 
-After push:
-
-- GitHub Actions workflow (`.github/workflows/linux-notes-sync-ci.yml`) will run tests on Ubuntu automatically.
-- Users will get a structured bug form from `.github/ISSUE_TEMPLATE/linux_notes_sync_bug.yml`.
-- Contribution notes are in `CONTRIBUTING.md`.
-- License: `LICENSE` (MIT).
-
-## Update After Changes
+Run checks locally:
 
 ```bash
-cd /Users/andrew/.codex/workspaces/default/notes_sync_app_linux
-git add .
-git commit -m "Describe changes"
-git push
+python3 -m py_compile notes_sync_linux/core.py notes_sync_linux/gui.py notes_sync_linux/qt_gui.py notes_sync_linux/main.py notes_sync_linux/main_qt.py
+PYTHONPATH=. python3 -m unittest discover -s tests -v
+PYTHONPATH=. python3 scripts/gui_smoke_test.py
+PYTHONPATH=. python3 scripts/gui_smoke_test_qt.py
 ```
 
-## Release Artifacts
+## Release Flow
 
-The repository includes automated Linux packaging:
+Automated via GitHub Actions:
 
-- `.deb` package
-- `AppImage`
-- `SHA256SUMS.txt`
-
-Workflow file:
-
+- `.github/workflows/linux-notes-sync-ci.yml`
 - `.github/workflows/linux-notes-sync-release.yml`
 
-### Automatic release on tag
-
-Push a tag like `v0.1.0`:
+Create a release tag:
 
 ```bash
-cd /Users/andrew/.codex/workspaces/default/notes_sync_app_linux
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
-GitHub Actions will:
+Release workflow will:
 
-- run compile/tests
-- run GUI smoke test in virtual display (`xvfb`)
+- run tests and GUI smoke tests
 - build `.deb` and `AppImage`
-- extract release notes from `CHANGELOG.md` section `[0.1.0]`
-- create a GitHub Release with artifacts attached
+- generate release notes from `CHANGELOG.md`
+- publish GitHub Release assets
 
-### Manual build on Linux
+Manual artifact build:
 
-Install build dependencies:
+```bash
+./scripts/build_release_artifacts.sh 0.1.2
+```
+
+Artifacts appear in `dist/`.
+
+## Troubleshooting
+
+`ImportError: libEGL.so.1` in CI or Linux host:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3 python3-pip python3-tk dpkg-dev desktop-file-utils patchelf squashfs-tools
-python3 -m pip install --upgrade pip
-python3 -m pip install pyinstaller pyside6
+sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
 ```
 
-Build all artifacts:
+Qt issues on specific distro:
 
-```bash
-cd /Users/andrew/.codex/workspaces/default/notes_sync_app_linux
-./scripts/build_release_artifacts.sh 0.1.0
-```
+- ensure Qt runtime packages are installed and `pip install -r requirements.txt` completed
 
-Artifacts will appear in `dist/`.
+## Contributing
 
-## Changelog
+- Contribution guide: `CONTRIBUTING.md`
+- Bug template: `.github/ISSUE_TEMPLATE/linux_notes_sync_bug.yml`
+- Changelog: `CHANGELOG.md`
 
-Release notes are generated from `CHANGELOG.md`.
+## License
 
-- Add new changes to `## [Unreleased]`.
-- Before tagging, move them into a new section like `## [0.1.1] - YYYY-MM-DD`.
+MIT (`LICENSE`)
