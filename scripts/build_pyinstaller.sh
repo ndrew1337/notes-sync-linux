@@ -13,4 +13,4 @@ python3 -m PyInstaller \
   --onefile \
   --windowed \
   --name NotesSyncLinux \
-  notes_sync_linux/main.py
+  notes_sync_linux/main_qt.py

@@ -1,6 +1,6 @@
 # NotesSyncLinux
 
-Linux desktop version of the notes sync app (Tkinter, Python 3.10+).
+Linux desktop version of the notes sync app (PySide6/Qt primary UI, Python 3.10+).
 
 ## Features
 
@@ -23,8 +23,17 @@ Linux desktop version of the notes sync app (Tkinter, Python 3.10+).
 
 - Linux
 - Python 3.10+
-- `tkinter` package (on Debian/Ubuntu: `sudo apt install python3-tk`)
+- `PySide6` (install with `pip`, see below)
+- `tkinter` package (optional fallback UI; Debian/Ubuntu: `sudo apt install python3-tk`)
 - `xdg-open` (usually preinstalled)
+
+Install Python dependencies:
+
+```bash
+cd notes_sync_app_linux
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+```
 
 ## Run
 
@@ -38,6 +47,22 @@ or:
 ```bash
 cd notes_sync_app_linux
 ./run.sh
+```
+
+`main` uses Qt UI by default, and falls back to tkinter if Qt is unavailable.
+
+Force tkinter explicitly:
+
+```bash
+cd notes_sync_app_linux
+NOTES_SYNC_UI=tk python3 -m notes_sync_linux.main
+```
+
+Run Qt entrypoint directly:
+
+```bash
+cd notes_sync_app_linux
+python3 -m notes_sync_linux.main_qt
 ```
 
 ## Storage
@@ -122,7 +147,7 @@ Install build dependencies:
 sudo apt-get update
 sudo apt-get install -y python3 python3-pip python3-tk dpkg-dev desktop-file-utils patchelf squashfs-tools
 python3 -m pip install --upgrade pip
-python3 -m pip install pyinstaller
+python3 -m pip install pyinstaller pyside6
 ```
 
 Build all artifacts:

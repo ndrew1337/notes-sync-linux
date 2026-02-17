@@ -18,8 +18,9 @@ Include:
 
 ```bash
 cd /Users/andrew/.codex/workspaces/default/notes_sync_app_linux
-python3 -m py_compile notes_sync_linux/core.py notes_sync_linux/gui.py notes_sync_linux/main.py
+python3 -m py_compile notes_sync_linux/core.py notes_sync_linux/gui.py notes_sync_linux/qt_gui.py notes_sync_linux/main.py notes_sync_linux/main_qt.py
 PYTHONPATH=. python3 -m unittest discover -s tests -v
+PYTHONPATH=. python3 scripts/gui_smoke_test_qt.py
 ```
 
 ## Release Flow

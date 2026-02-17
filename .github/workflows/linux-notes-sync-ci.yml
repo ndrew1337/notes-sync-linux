@@ -20,13 +20,21 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk xvfb
+          sudo apt-get install -y python3-pip python3-tk xvfb
+
+      - name: Install Python UI dependencies
+        shell: bash
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pyside6
 
       - name: Compile python files
         run: |
           python3 -m py_compile notes_sync_linux/core.py
           python3 -m py_compile notes_sync_linux/gui.py
+          python3 -m py_compile notes_sync_linux/qt_gui.py
           python3 -m py_compile notes_sync_linux/main.py
+          python3 -m py_compile notes_sync_linux/main_qt.py
 
       - name: Run unit tests
         env:
@@ -39,3 +47,4 @@ jobs:
           PYTHONPATH: .
         run: |
           xvfb-run -a python3 scripts/gui_smoke_test.py
+          xvfb-run -a python3 scripts/gui_smoke_test_qt.py

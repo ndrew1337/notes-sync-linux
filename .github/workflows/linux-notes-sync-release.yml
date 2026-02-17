@@ -56,14 +56,16 @@ jobs:
         shell: bash
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install pyinstaller
+          python3 -m pip install pyinstaller pyside6
 
       - name: Validate project
         shell: bash
         run: |
           python3 -m py_compile notes_sync_linux/core.py notes_sync_linux/gui.py notes_sync_linux/main.py
+          python3 -m py_compile notes_sync_linux/qt_gui.py notes_sync_linux/main_qt.py
           PYTHONPATH=. python3 -m unittest discover -s tests -v
           PYTHONPATH=. xvfb-run -a python3 scripts/gui_smoke_test.py
+          PYTHONPATH=. xvfb-run -a python3 scripts/gui_smoke_test_qt.py
 
       - name: Prepare release notes
         shell: bash
