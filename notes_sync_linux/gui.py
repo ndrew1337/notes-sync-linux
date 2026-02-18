@@ -45,6 +45,40 @@ def human_size(num: Optional[int]) -> str:
     return f"{value:.1f} {units[idx]}"
 
 
+def compact_mime_type(mime_type: Optional[str]) -> str:
+    if not mime_type:
+        return "-"
+    value = mime_type.strip().lower()
+    if not value:
+        return "-"
+    value = value.split(";", 1)[0]
+    subtype = value.split("/", 1)[-1]
+    if subtype.startswith("x-"):
+        subtype = subtype[2:]
+    mapped = {
+        "pdf": "PDF",
+        "zip": "ZIP",
+        "json": "JSON",
+        "mp4": "MP4",
+        "plain": "TXT",
+        "csv": "CSV",
+        "jpeg": "JPG",
+        "png": "PNG",
+        "gif": "GIF",
+        "msword": "DOC",
+        "vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+        "vnd.ms-powerpoint": "PPT",
+        "vnd.openxmlformats-officedocument.presentationml.presentation": "PPTX",
+        "vnd.ms-excel": "XLS",
+        "vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
+    }
+    if subtype in mapped:
+        return mapped[subtype]
+    if len(subtype) <= 5:
+        return subtype.upper()
+    return subtype
+
+
 class NoteDialog(tk.Toplevel):
     def __init__(self, parent: tk.Tk, title: str, initial_title: str = "", initial_url: str = "") -> None:
         super().__init__(parent)
@@ -250,9 +284,9 @@ class NotesSyncLinuxApp(tk.Tk):
         self.source_tree.heading("type", text="Type")
 
         self.source_tree.column("#0", width=680, anchor="w")
-        self.source_tree.column("size", width=120, anchor="e")
-        self.source_tree.column("modified", width=160, anchor="w")
-        self.source_tree.column("type", width=220, anchor="w")
+        self.source_tree.column("size", width=90, anchor="e")
+        self.source_tree.column("modified", width=130, anchor="w")
+        self.source_tree.column("type", width=90, anchor="w")
 
         source_scroll = ttk.Scrollbar(source_frame, orient="vertical", command=self.source_tree.yview)
         self.source_tree.configure(yscrollcommand=source_scroll.set)
@@ -582,7 +616,7 @@ class NotesSyncLinuxApp(tk.Tk):
         values = (
             "-" if node["is_folder"] else human_size(file_obj.size_bytes if file_obj else None),
             "-" if node["is_folder"] else iso_to_display(file_obj.modified_at if file_obj else None),
-            "folder" if node["is_folder"] else (file_obj.mime_type if file_obj and file_obj.mime_type else "-"),
+            "folder" if node["is_folder"] else compact_mime_type(file_obj.mime_type if file_obj else None),
         )
 
         self.source_tree.insert(

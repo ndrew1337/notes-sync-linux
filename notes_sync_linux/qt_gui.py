@@ -63,6 +63,40 @@ def human_size(num: Optional[int]) -> str:
     return f"{value:.1f} {units[idx]}"
 
 
+def compact_mime_type(mime_type: Optional[str]) -> str:
+    if not mime_type:
+        return "-"
+    value = mime_type.strip().lower()
+    if not value:
+        return "-"
+    value = value.split(";", 1)[0]
+    subtype = value.split("/", 1)[-1]
+    if subtype.startswith("x-"):
+        subtype = subtype[2:]
+    mapped = {
+        "pdf": "PDF",
+        "zip": "ZIP",
+        "json": "JSON",
+        "mp4": "MP4",
+        "plain": "TXT",
+        "csv": "CSV",
+        "jpeg": "JPG",
+        "png": "PNG",
+        "gif": "GIF",
+        "msword": "DOC",
+        "vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+        "vnd.ms-powerpoint": "PPT",
+        "vnd.openxmlformats-officedocument.presentationml.presentation": "PPTX",
+        "vnd.ms-excel": "XLS",
+        "vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
+    }
+    if subtype in mapped:
+        return mapped[subtype]
+    if len(subtype) <= 5:
+        return subtype.upper()
+    return subtype
+
+
 class NoteDialog(QDialog):
     def __init__(
         self,
@@ -318,8 +352,10 @@ class NotesSyncQtWindow(QMainWindow):
         self.source_tree.itemDoubleClicked.connect(self._on_source_double_click)
         self.source_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.source_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.source_tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.source_tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.source_tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        self.source_tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        self.source_tree.setColumnWidth(2, 130)
+        self.source_tree.setColumnWidth(3, 90)
         layout.addWidget(self.source_tree, stretch=4)
 
         status_line = QHBoxLayout()
@@ -831,7 +867,7 @@ class NotesSyncQtWindow(QMainWindow):
             node["name"],
             "-" if node["is_folder"] else human_size(file_obj.size_bytes if file_obj else None),
             "-" if node["is_folder"] else iso_to_display(file_obj.modified_at if file_obj else None),
-            "folder" if node["is_folder"] else (file_obj.mime_type if file_obj and file_obj.mime_type else "-"),
+            "folder" if node["is_folder"] else compact_mime_type(file_obj.mime_type if file_obj else None),
         ]
 
         item = QTreeWidgetItem(values)
